@@ -99,9 +99,24 @@
   .user .who b{display:block;font-size:13.5px;font-weight:700}
   .user .who span{font-size:11.5px;color:var(--muted);font-weight:500}
 
+  /* ---------- LEFT COLUMN (rail + dock share one column, so they can
+     never overlap: the dock is pushed to the bottom by flex, the rail's
+     top offset shrinks to 0 as the window gets shorter, and below the
+     minimum height the column scrolls instead of colliding) ---------- */
+  .leftcol{
+    position:fixed;left:22px;top:92px;bottom:22px;z-index:14;
+    display:flex;flex-direction:column;gap:16px;
+    width:max-content;max-width:calc(100vw - var(--rightw) - 82px);
+    overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;
+    pointer-events:none;
+  }
+  .leftcol::-webkit-scrollbar{display:none}
+  .leftcol>*{pointer-events:auto}
+
   /* ---------- RAIL ---------- */
   .rail{
-    position:fixed;left:22px;top:24.5%;z-index:15;width:196px;
+    position:relative;z-index:15;width:196px;flex:none;
+    margin-top:clamp(0px,calc(100vh - 700px),173px);
     background:var(--panel);border:1px solid var(--card-line);border-radius:var(--radius);
     backdrop-filter:blur(20px);padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.42);
     display:flex;flex-direction:column;gap:3px;
@@ -127,7 +142,7 @@
   .chip{display:inline-flex;align-items:center;background:rgba(201,241,88,.16);color:var(--lime);font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px}
 
   /* ---------- DOCK (bottom-left cards) ---------- */
-  .dock{position:fixed;left:22px;bottom:22px;max-width:calc(100vw - var(--rightw) - 82px);z-index:14;display:flex;gap:16px;align-items:stretch}
+  .dock{position:relative;flex:none;margin-top:auto;max-width:calc(100vw - var(--rightw) - 82px);z-index:14;display:flex;gap:16px;align-items:stretch}
   .cropmix{width:348px;flex:0 0 348px;padding:20px 22px}
   .cropmix .body{display:flex;align-items:center;gap:8px;margin-top:12px}
   .donut{position:relative;width:158px;height:158px;flex:none}
@@ -231,9 +246,17 @@
     :root{--rightw:380px}
     .cropmix{flex-basis:320px;width:320px}
   }
-  /* Short desktop windows: rail rides up so it clears the dock below it */
-  @media (min-width:1201px) and (max-height:860px){
-    .rail{top:96px}
+  /* Short desktop windows: rail + dock compact a step so the whole left
+     column still fits on screen (no overlap, nothing pushed off-screen) */
+  @media (min-width:1201px) and (max-height:700px){
+    .leftcol{gap:10px}
+    .rail{padding:9px 12px}
+    .rail a{padding:9px 14px}
+    .cropmix,.harvest{padding:16px 22px}
+  }
+  @media (min-width:1201px) and (max-height:640px){
+    .rail a{padding:7px 14px}
+    .cropmix,.harvest{padding:13px 22px}
   }
   /* Stacked layout (tablets, small laptops, phones): every panel in normal
      flow, one per row — fixed collage positioning is off, so no two panels
@@ -243,7 +266,8 @@
     .map{position:fixed}
     header{position:absolute;padding:14px 16px;gap:12px}
     .logo{font-size:20px}
-    .rail{position:absolute;flex-direction:row;left:12px;right:12px;top:76px;width:auto;padding:8px;overflow-x:auto}
+    .leftcol{position:static;display:contents;overflow:visible}
+    .rail{position:absolute;margin-top:0;flex-direction:row;left:12px;right:12px;top:76px;width:auto;padding:8px;overflow-x:auto}
     .rail a{padding:9px 12px;font-size:13px;white-space:nowrap}
     .rail a.active::after{display:none}
     .right{position:relative;right:auto;top:auto;bottom:auto;width:auto;margin:14px 12px 24px;overflow-y:visible}
@@ -321,6 +345,8 @@
     </div>
   </header>
 
+  <!-- LEFT COLUMN -->
+  <div class="leftcol">
   <!-- RAIL -->
   <nav class="rail initial" id="rail">
     <a href="#"><svg class="ph" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M104,40H56A16,16,0,0,0,40,56v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,104,40Zm0,64H56V56h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,64H152V56h48v48Zm-96,32H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm0,64H56V152h48v48Zm96-64H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Zm0,64H152V152h48v48Z"/></svg>Overview</a>
@@ -373,6 +399,7 @@
       </div>
     </section>
   </div>
+  </div><!-- /leftcol -->
 
   <!-- RIGHT COLUMN -->
   <div class="right">
