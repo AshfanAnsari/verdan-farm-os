@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verdan · Farm OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --lime:#C9F158;
+    --lime-dim:#A8D63E;
+    --green:#3FA46A;
+    --orange:#F2A93B;
+    --ink:#EFF6E9;
+    --muted:#93A98F;
+    --faint:#6E856B;
+    --panel:rgba(11,21,13,.78);
+    --card:rgba(255,255,255,.045);
+    --card-line:rgba(255,255,255,.06);
+    --radius:22px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+  html,body{height:100%}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:#0A140C;
+    color:var(--ink);
+    overflow:hidden;
+  }
+  /* ---------- MAP ---------- */
+  .map{position:fixed;inset:0;overflow:hidden;background:#12240F}
+  .map img.photo{
+    position:absolute;inset:-4%;width:108%;height:108%;object-fit:cover;
+    transform-origin:50% 45%;
+    filter:saturate(1.12) contrast(1.03);
+  }
+  .map .tint{position:absolute;inset:0;opacity:0;transition:opacity .8s ease;pointer-events:none}
+  .map .tint.moisture{background:rgba(38,92,160,.20);opacity:1}
+  .map .tint.yield{background:rgba(214,150,32,.16);opacity:1}
+  .map .shade{position:absolute;inset:0;pointer-events:none;
+    background:
+      linear-gradient(180deg, rgba(6,12,7,.42) 0%, rgba(6,12,7,0) 18%, rgba(6,12,7,0) 62%, rgba(6,12,7,.38) 100%),
+      radial-gradient(120% 90% at 50% 40%, rgba(0,0,0,0) 55%, rgba(4,9,5,.35) 100%);
+  }
+  .zone-outline{position:absolute;left:4.5%;top:39%;width:18%;height:27%;pointer-events:none;opacity:0}
+  .zone-outline svg{width:100%;height:100%;overflow:visible}
+  .zone-outline path{fill:rgba(249,231,170,.14);stroke:rgba(250,238,190,.85);stroke-width:1.6}
+
+  /* pins */
+  .pin{position:absolute;transform:translate(-50%,-100%);display:flex;flex-direction:column;align-items:center;gap:0;z-index:5;cursor:pointer}
+  .pin .tag{
+    display:flex;align-items:center;gap:7px;white-space:nowrap;
+    background:rgba(10,18,11,.82);backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.10);
+    padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:600;letter-spacing:.01em;
+    box-shadow:0 8px 22px rgba(0,0,0,.35);
+  }
+  .pin .tag i{width:7px;height:7px;border-radius:50%;background:#7FE3A8;display:block}
+  .pin .tag b{font-weight:700}
+  .pin .tag span{color:var(--muted);font-weight:500}
+  .pin .stem{width:1.5px;height:15px;background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,.15))}
+  .pin .dot{width:11px;height:11px;border-radius:50%;background:#fff;border:3px solid rgba(20,32,20,.85);box-shadow:0 2px 8px rgba(0,0,0,.5);margin-top:-1px}
+  .pin.warn .tag{background:linear-gradient(180deg,#F7BC55,#EEA233);color:#3A2703;border-color:rgba(255,255,255,.25)}
+  .pin.warn .tag span{color:#6d4c10}
+  .pin.warn .dot{background:transparent;border:3px solid #F5B544;width:15px;height:15px;position:relative}
+  .pin.warn .dot::after{content:"";position:absolute;inset:-11px;border-radius:50%;border:1.5px solid rgba(245,181,68,.75);animation:pulse 2.2s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(.45);opacity:1}70%{transform:scale(1.15);opacity:0}100%{opacity:0}}
+
+  .scalebar{position:absolute;left:26px;top:57%;z-index:4;color:rgba(255,255,255,.85);font-size:11.5px;font-weight:500;display:flex;align-items:center;gap:9px;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+  .scalebar .bar{width:86px;height:5px;border-left:2px solid rgba(255,255,255,.9);border-right:2px solid rgba(255,255,255,.9);border-bottom:2px solid rgba(255,255,255,.9)}
+
+  /* layer switcher */
+  .layers{position:absolute;right:458px;top:41%;z-index:6;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+  .layers button{
+    font-family:inherit;font-size:12.5px;font-weight:600;color:var(--ink);
+    background:rgba(10,18,11,.78);border:1px solid rgba(255,255,255,.10);backdrop-filter:blur(8px);
+    padding:7px 14px;border-radius:999px;cursor:pointer;transition:all .25s ease;box-shadow:0 8px 20px rgba(0,0,0,.3);
+  }
+  .layers button:hover{border-color:rgba(255,255,255,.28)}
+  .layers button.active{background:var(--lime);color:#1C2B0D;border-color:transparent}
+
+  /* ---------- HEADER ---------- */
+  header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:center;gap:22px;padding:20px 26px}
+  .logo{display:flex;align-items:center;gap:11px;font-size:24px;font-weight:800;letter-spacing:-.02em;color:#fff;text-shadow:0 2px 14px rgba(0,0,0,.45)}
+  .logo .mark{width:34px;height:34px;border-radius:10px;background:var(--lime);display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+  .logo .mark svg{width:20px;height:20px}
+  .search{
+    display:flex;align-items:center;gap:10px;width:min(430px,34vw);
+    background:rgba(10,18,11,.72);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(12px);
+    border-radius:999px;padding:11px 18px;color:var(--muted);font-size:13.5px;font-weight:500;
+    box-shadow:0 10px 26px rgba(0,0,0,.28);
+  }
+  .search svg{width:15px;height:15px;flex:none}
+  .head-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .bell{position:relative;width:42px;height:42px;border-radius:50%;background:rgba(10,18,11,.72);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(12px);display:grid;place-items:center;cursor:pointer}
+  .bell svg{width:18px;height:18px}
+  .bell::after{content:"";position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--lime);border:2px solid #0d1710}
+  .user{display:flex;align-items:center;gap:11px;background:rgba(10,18,11,.72);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(12px);border-radius:999px;padding:6px 18px 6px 6px;cursor:pointer}
+  .user .ava{width:36px;height:36px;border-radius:50%;background:var(--lime);color:#22330F;font-weight:800;font-size:13px;display:grid;place-items:center}
+  .user .who{line-height:1.15}
+  .user .who b{display:block;font-size:13.5px;font-weight:700}
+  .user .who span{font-size:11.5px;color:var(--muted);font-weight:500}
+
+  /* ---------- RAIL ---------- */
+  .rail{
+    position:fixed;left:22px;top:24.5%;z-index:15;width:196px;
+    background:var(--panel);border:1px solid var(--card-line);border-radius:var(--radius);
+    backdrop-filter:blur(20px);padding:12px;box-shadow:0 24px 50px rgba(0,0,0,.42);
+    display:flex;flex-direction:column;gap:3px;
+  }
+  .rail a{
+    display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:14px;
+    color:#C9D6C2;text-decoration:none;font-size:14.5px;font-weight:500;position:relative;transition:background .25s,color .25s;
+  }
+  .rail a svg{width:19px;height:19px;flex:none;opacity:.9}
+  .rail a:hover{background:rgba(255,255,255,.05);color:#fff}
+  .rail a.active{background:rgba(255,255,255,.10);color:#fff;font-weight:600}
+  .rail a.active::after{content:"";position:absolute;right:14px;width:7px;height:7px;border-radius:50%;background:var(--lime)}
+
+  /* ---------- PANELS (shared) ---------- */
+  .panel{
+    background:var(--panel);border:1px solid var(--card-line);border-radius:var(--radius);
+    backdrop-filter:blur(20px);box-shadow:0 24px 50px rgba(0,0,0,.42);
+  }
+  .panel h3{font-size:19px;font-weight:700;letter-spacing:-.01em}
+  .panel .sub{font-size:12.5px;color:var(--muted);font-weight:500;margin-top:3px}
+  .icon-btn{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.05);display:grid;place-items:center;cursor:pointer;flex:none}
+  .icon-btn svg{width:15px;height:15px}
+  .chip{display:inline-flex;align-items:center;background:rgba(201,241,88,.16);color:var(--lime);font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:999px}
+
+  /* ---------- DOCK (bottom-left cards) ---------- */
+  .dock{position:fixed;left:22px;bottom:22px;z-index:14;display:flex;gap:16px;align-items:stretch}
+  .cropmix{width:348px;padding:20px 22px}
+  .cropmix .body{display:flex;align-items:center;gap:8px;margin-top:12px}
+  .donut{position:relative;width:158px;height:158px;flex:none}
+  .donut svg{width:100%;height:100%;transform:rotate(-90deg)}
+  .donut .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .donut .center b{font-size:23px;font-weight:700;letter-spacing:-.01em}
+  .donut .center span{font-size:8.5px;letter-spacing:.22em;color:var(--muted);font-weight:600;margin-top:1px}
+  .legend{display:flex;flex-direction:column;gap:13px;margin-left:6px}
+  .legend .row{display:flex;flex-direction:column}
+  .legend .row .name{display:flex;align-items:center;gap:7px;font-size:12.5px;color:#C9D6C2;font-weight:500}
+  .legend .row .name i{width:8px;height:8px;border-radius:50%}
+  .legend .row .val{font-size:21px;font-weight:600;margin-top:1px}
+
+  .harvest{width:472px;padding:20px 22px}
+  .harvest .top{display:flex;align-items:flex-start;justify-content:space-between}
+  .harvest .controls{display:flex;gap:8px;align-items:center}
+  .pill-btn{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.05);color:var(--ink);font-family:inherit;font-size:12px;font-weight:600;padding:8px 12px;border-radius:999px;cursor:pointer}
+  .pill-btn svg{width:11px;height:11px}
+  .bars{display:flex;align-items:flex-end;gap:9px;height:138px;margin-top:14px}
+  .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%}
+  .col .track{position:relative;width:100%;max-width:22px;flex:1;background:rgba(255,255,255,.055);border-radius:8px;display:flex;align-items:flex-end;overflow:hidden}
+  .col .fill{width:100%;border-radius:8px;background:linear-gradient(180deg,#F4F7EF,#B9C4B2);height:0%}
+  .col.hot .fill{background:linear-gradient(180deg,#D9F77E,#B7E34A)}
+  .col .mon{font-size:10.5px;color:var(--faint);font-weight:500}
+  .harvest .axis{position:absolute}
+  .bars-wrap{position:relative}
+  .yaxis{position:absolute;left:-4px;top:0;bottom:22px;display:flex;flex-direction:column;justify-content:space-between;font-size:10px;color:var(--faint);font-weight:500;transform:translateX(-100%);padding-right:6px;text-align:right}
+
+  /* ---------- RIGHT COLUMN ---------- */
+  .right{position:fixed;right:22px;top:88px;bottom:22px;z-index:14;width:420px;display:flex;flex-direction:column;gap:16px}
+  .overview{padding:20px 22px}
+  .overview .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+  .overview .head h3{font-size:21px}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .stat{background:var(--card);border:1px solid var(--card-line);border-radius:17px;padding:14px;position:relative;overflow:hidden;min-height:138px;display:flex;flex-direction:column}
+  .stat .lbl{font-size:13px;color:#C9D6C2;font-weight:500;display:flex;justify-content:space-between;align-items:center}
+  .stat .lbl svg{width:16px;height:16px;opacity:.75}
+  .stat .big{font-size:28px;font-weight:600;letter-spacing:-.02em;margin-top:7px;display:flex;align-items:baseline;gap:5px}
+  .stat .big .chip{font-size:10.5px;padding:3px 8px;white-space:nowrap}
+  .stat .big small{font-size:14px;color:var(--muted);font-weight:500}
+  .stat .big .chip{margin-left:auto;align-self:center}
+  .stat .spark{margin-top:auto}
+  .stat .spark svg{width:100%;height:44px;display:block}
+  .lollis{display:flex;align-items:flex-end;justify-content:space-between;height:52px;margin-top:auto;position:relative;padding:0 2px}
+  .lollis .dash{position:absolute;left:0;right:0;top:6px;border-top:1.5px dashed rgba(255,255,255,.28)}
+  .lollis .max{position:absolute;top:-7px;left:0;background:#E9F2DF;color:#20301A;font-size:9.5px;font-weight:700;padding:2.5px 7px;border-radius:6px;z-index:2}
+  .lolli{display:flex;flex-direction:column;align-items:center;gap:0;width:14px}
+  .lolli i{width:9px;height:9px;border-radius:50%;background:#E9F2DF;display:block;flex:none}
+  .lolli .stem{width:2.5px;background:#C9D6C2;border-radius:2px;height:0}
+  .lolli.hot i{background:var(--lime)}
+  .lolli.hot .stem{background:var(--lime)}
+  .gauge-wrap{margin-top:auto;display:flex;flex-direction:column;align-items:center}
+  .gauge-wrap svg{width:168px;height:96px}
+  .gauge-num{font-size:31px;font-weight:600;letter-spacing:-.02em;margin-top:-52px}
+  .gauge-sub{font-size:9.5px;letter-spacing:.24em;color:var(--muted);font-weight:600;margin-top:1px}
+
+  .irrigation{padding:18px 22px}
+  .irrigation .plan-lbl{font-size:12px;color:var(--muted);font-weight:500}
+  .irrigation .plan-title{font-size:15.5px;font-weight:700;letter-spacing:-.01em;margin-top:4px;white-space:nowrap}
+  .irrigation .plan-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .agronomist{display:flex;align-items:center;gap:10px}
+  .agronomist .ava{width:38px;height:38px;border-radius:50%;background:#DCE8CF;color:#2A3D1E;font-weight:700;font-size:12.5px;display:grid;place-items:center;flex:none}
+  .agronomist .who{line-height:1.2}
+  .agronomist .who span{display:block;font-size:11px;color:var(--muted);font-weight:500}
+  .agronomist .who b{font-size:13.5px;font-weight:600}
+  .zones{margin-top:16px}
+  .zones .zrow{display:flex;justify-content:space-between;font-size:12.5px;color:#C9D6C2;font-weight:500}
+  .zones .zrow b{color:var(--ink);font-weight:600}
+  .zones .segs{display:flex;gap:8px;margin-top:9px}
+  .zones .segs i{flex:1;height:15px;border-radius:6px;background:rgba(255,255,255,.09)}
+  .zones .segs i.on{background:rgba(255,255,255,.16)}
+  .zones .segs i.lime{background:var(--lime)}
+
+  .messages{padding:18px 22px;flex:1;min-height:0}
+  .messages .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .messages .head a{font-size:12px;color:var(--muted);text-decoration:none;font-weight:500}
+  .msg{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .msg:last-child{border-bottom:none}
+  .msg .ava{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:11.5px;font-weight:700;flex:none}
+  .msg .txt{min-width:0}
+  .msg .txt b{font-size:13.5px;font-weight:600;display:block}
+  .msg .txt span{font-size:12px;color:var(--muted);font-weight:400;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ---------- FIELD POPUP ---------- */
+  .popup{
+    position:fixed;left:36%;top:15.5%;z-index:30;width:308px;
+    background:rgba(13,23,15,.92);border:1px solid rgba(255,255,255,.10);border-radius:20px;
+    backdrop-filter:blur(22px);box-shadow:0 34px 70px rgba(0,0,0,.55);
+    overflow:hidden;opacity:0;pointer-events:none;
+  }
+  .popup .photo{position:relative;height:128px}
+  .popup .photo img{width:100%;height:100%;object-fit:cover;display:block}
+  .popup .photo .lowmoist{position:absolute;top:12px;left:12px;background:linear-gradient(180deg,#F7BC55,#EEA233);color:#3A2703;font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:999px;display:flex;gap:6px;align-items:center}
+  .popup .photo .dots{position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;background:rgba(10,16,10,.65);display:grid;place-items:center;color:#fff;font-weight:800;letter-spacing:1px;cursor:pointer;border:none;font-family:inherit}
+  .popup .body{padding:16px 18px 18px}
+  .popup h4{font-size:19px;font-weight:700;letter-spacing:-.01em}
+  .popup .meta{font-size:12px;color:var(--muted);font-weight:500;margin-top:3px}
+  .popup .pct-row{display:flex;align-items:flex-end;justify-content:space-between;margin-top:13px}
+  .popup .pct{font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1}
+  .popup .vs{font-size:12px;color:var(--orange);font-weight:600}
+  .popup .stats{font-size:12px;color:#C9D6C2;font-weight:500;margin-top:9px}
+  .popup .stats b{color:var(--ink);font-weight:600}
+  .popup .cta{
+    margin-top:15px;width:100%;border:none;cursor:pointer;font-family:inherit;
+    background:rgba(201,241,88,.14);color:var(--lime);font-size:14.5px;font-weight:700;
+    padding:13px;border-radius:13px;display:flex;align-items:center;justify-content:center;gap:8px;
+    transition:background .3s,color .3s;
+  }
+  .popup .cta.irrigating{background:var(--lime);color:#1C2B0D}
+
+  /* late overrides: irrigation row fit */
+  .irrigation .plan-row{gap:8px}
+  .irrigation .agronomist{gap:8px}
+  .irrigation .agronomist .ava{width:34px;height:34px}
+  .irrigation .agronomist .who b{white-space:nowrap;font-size:12.5px}
+  .irrigation .agronomist .who span{font-size:10px}
+
+  .initial{opacity:0}
+  @media (max-width:1180px){ .layers{right:auto;left:236px;top:auto;bottom:330px;flex-direction:row} }
+  @media (max-width:900px){
+    body{overflow:auto}
+    .map{position:fixed}
+    header{position:absolute;padding:14px 16px;gap:12px}
+    .logo{font-size:20px}.search{display:none}
+    .rail{flex-direction:row;left:12px;right:12px;top:76px;width:auto;padding:8px;overflow-x:auto}
+    .rail a{padding:9px 12px;font-size:13px;white-space:nowrap}
+    .rail a.active::after{display:none}
+    .right{position:relative;right:auto;top:auto;bottom:auto;width:auto;margin:14px 12px 0}
+    .dock{position:relative;left:auto;bottom:auto;margin:calc(52vh + 132px) 12px 0;flex-direction:column}
+    .cropmix,.harvest{width:auto}
+    .popup{left:50%;margin-left:-154px;top:150px;width:min(308px,92vw)}
+    .layers{display:none}
+    .scalebar{display:none}
+    .stat .big{font-size:24px}
+    .stat .big .chip{font-size:9.5px;padding:2.5px 7px}
+    .pill-btn{white-space:nowrap}
+  }
+</style>
+</head>
+<body>
+
+  <!-- MAP -->
+  <div class="map">
+    <img class="photo" id="mapPhoto" src="assets/aerial.jpg" alt="Aerial view of the farm">
+    <div class="tint" id="mapTint"></div>
+    <div class="shade"></div>
+
+    <div class="zone-outline" id="zoneOutline">
+      <svg viewBox="0 0 200 220" preserveAspectRatio="none">
+        <path id="zonePath" d="M100,6 C150,6 188,38 192,95 C195,140 178,186 138,205 C105,220 55,214 30,188 C6,163 2,110 14,66 C24,28 55,6 100,6 Z"/>
+      </svg>
+    </div>
+
+    <div class="pin initial" style="left:17.5%;top:26.5%">
+      <div class="tag"><i></i><b>Field 01</b><span>· Soy</span></div><div class="stem"></div><div class="dot"></div>
+    </div>
+    <div class="pin initial" style="left:44%;top:13.5%">
+      <div class="tag"><i></i><b>Field 02</b><span>· Corn</span></div><div class="stem"></div><div class="dot"></div>
+    </div>
+    <div class="pin initial" style="left:64.5%;top:34.5%">
+      <div class="tag"><i></i><b>Field 04</b><span>· Soy</span></div><div class="stem"></div><div class="dot"></div>
+    </div>
+    <div class="pin initial" style="left:63%;top:44%">
+      <div class="tag"><i></i><b>HQ</b><span>· Silo 82%</span></div><div class="stem"></div><div class="dot"></div>
+    </div>
+    <div class="pin warn initial" id="pinField03" style="left:18%;top:49%">
+      <div class="tag"><b>⚠ Field 03</b><span>· Dry</span></div><div class="stem"></div><div class="dot"></div>
+    </div>
+
+    <div class="scalebar initial"><div class="bar"></div>200 m</div>
+
+    <div class="layers initial" id="layers">
+      <button class="active" data-tint="">NDVI</button>
+      <button data-tint="moisture">Moisture</button>
+      <button data-tint="yield">Yield</button>
+      <button data-tint="">Pivots</button>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <header class="initial" id="header">
+    <div class="logo">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 19C5 10 11 4.5 20 4c.5 9-4.5 15-13.5 15" stroke="#22330F" stroke-width="2.4" stroke-linecap="round"/><path d="M5 19c2.5-5 6-8.5 10-11" stroke="#22330F" stroke-width="2.4" stroke-linecap="round"/></svg>
+      </div>
+      Verdan.
+    </div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#93A98F" stroke-width="2.2"/><path d="M20 20l-3.8-3.8" stroke="#93A98F" stroke-width="2.2" stroke-linecap="round"/></svg>
+      Search fields, pivots, crops…
+    </div>
+    <div class="head-right">
+      <div class="bell">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M6 16v-5a6 6 0 1112 0v5l1.5 3h-15L6 16z" stroke="#EFF6E9" stroke-width="1.9" stroke-linejoin="round"/><path d="M10 21a2.2 2.2 0 004 0" stroke="#EFF6E9" stroke-width="1.9" stroke-linecap="round"/></svg>
+      </div>
+      <div class="user">
+        <div class="ava">AP</div>
+        <div class="who"><b>Ana P.</b><span>Farm manager</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- RAIL -->
+  <nav class="rail initial" id="rail">
+    <a href="#"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.9"/><rect x="13" y="4" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.9"/><rect x="4" y="13" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.9"/><rect x="13" y="13" width="7" height="7" rx="2" stroke="currentColor" stroke-width="1.9"/></svg>Overview</a>
+    <a href="#"><svg viewBox="0 0 24 24" fill="none"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zm0 0v14m6-12v14" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>Fields</a>
+    <a href="#" class="active"><svg viewBox="0 0 24 24" fill="none"><path d="M5 19C5 10 11 4.5 20 4c.5 9-4.5 15-13.5 15" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M5 19c2.5-5 6-8.5 10-11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>Health</a>
+    <a href="#"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5c3.5 4.2 6 7.6 6 11a6 6 0 11-12 0c0-3.4 2.5-6.8 6-11z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>Irrigation</a>
+    <a href="#"><svg viewBox="0 0 24 24" fill="none"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H9l-5 4V6z" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>Messages</a>
+    <a href="#"><svg viewBox="0 0 24 24" fill="none"><path d="M5 20V10m7 10V4m7 16v-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Insights</a>
+  </nav>
+
+  <!-- DOCK -->
+  <div class="dock">
+    <section class="panel cropmix initial" id="cropCard">
+      <h3>Crop Mix</h3>
+      <div class="sub">Planted area this season</div>
+      <div class="body">
+        <div class="donut">
+          <svg viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"/>
+            <circle cx="60" cy="60" r="41" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"/>
+            <circle cx="60" cy="60" r="30" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="9"/>
+            <circle id="arcSoy"  cx="60" cy="60" r="52" fill="none" stroke="#C9F158" stroke-width="9" stroke-linecap="round"/>
+            <circle id="arcCorn" cx="60" cy="60" r="41" fill="none" stroke="#3FA46A" stroke-width="9" stroke-linecap="round"/>
+            <circle id="arcWheat" cx="60" cy="60" r="30" fill="none" stroke="#EDF4E4" stroke-width="9" stroke-linecap="round"/>
+          </svg>
+          <div class="center"><b id="hectares">0</b><span>HECTARES</span></div>
+        </div>
+        <div class="legend">
+          <div class="row"><div class="name"><i style="background:#C9F158"></i>Soybean</div><div class="val">48%</div></div>
+          <div class="row"><div class="name"><i style="background:#3FA46A"></i>Corn</div><div class="val">32%</div></div>
+          <div class="row"><div class="name"><i style="background:#EDF4E4"></i>Wheat</div><div class="val">20%</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel harvest initial" id="harvestCard">
+      <div class="top">
+        <div>
+          <h3>Harvest Forecast</h3>
+          <div class="sub">Thousand tons per month, next 12</div>
+        </div>
+        <div class="controls">
+          <button class="pill-btn">Next 12 mo <svg viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>
+          <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none"><path d="M5 7h9M18 7h1M5 17h3M12 17h7" stroke="#EFF6E9" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" stroke="#EFF6E9" stroke-width="2"/><circle cx="10" cy="17" r="2.2" stroke="#EFF6E9" stroke-width="2"/></svg></button>
+          <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="#EFF6E9" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="bars-wrap">
+        <div class="bars" id="bars"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right">
+    <section class="panel overview initial" id="overviewCard">
+      <div class="head">
+        <h3>Farm Overview</h3>
+        <button class="icon-btn"><svg viewBox="0 0 24 24" fill="none"><path d="M7 17L17 7M9 7h8v8" stroke="#EFF6E9" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div class="stat-grid">
+        <div class="stat">
+          <div class="lbl">Avg. NDVI <svg viewBox="0 0 24 24" fill="none"><path d="M5 19C5 10 11 4.5 20 4c.5 9-4.5 15-13.5 15" stroke="#C9D6C2" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          <div class="big"><span id="ndvi">0.71</span><small>index</small><span class="chip">Healthy</span></div>
+          <div class="spark">
+            <svg viewBox="0 0 160 44" preserveAspectRatio="none">
+              <defs><linearGradient id="ndviFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C9F158" stop-opacity=".45"/><stop offset="1" stop-color="#C9F158" stop-opacity="0"/></linearGradient></defs>
+              <path id="ndviArea" d="M0,40 C30,38 45,30 70,26 C100,21 125,12 160,7 L160,44 L0,44 Z" fill="url(#ndviFill)" opacity="0"/>
+              <path id="ndviLine" d="M0,40 C30,38 45,30 70,26 C100,21 125,12 160,7" fill="none" stroke="#C9F158" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="lbl">Pivots running <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#C9D6C2" stroke-width="1.8"/><path d="M12 7v5l3.5 2" stroke="#C9D6C2" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          <div class="big"><span id="pivots">0</span><span class="chip">2 running</span></div>
+          <div class="lollis" id="lollis">
+            <div class="dash"></div><div class="max">Max 4</div>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="lbl">Soil moisture <svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5c3.5 4.2 6 7.6 6 11a6 6 0 11-12 0c0-3.4 2.5-6.8 6-11z" stroke="#C9D6C2" stroke-width="1.8" stroke-linejoin="round"/></svg></div>
+          <div class="big"><span id="soil">22</span><small>%</small><span class="chip">Rising</span></div>
+          <div class="spark">
+            <svg viewBox="0 0 160 44" preserveAspectRatio="none">
+              <path id="soilLine" d="M0,38 C18,34 26,36 40,29 C54,22 62,30 78,24 C94,18 104,26 122,21 C138,17 148,20 160,16" fill="none" stroke="#C9F158" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="lbl">Crop health <svg viewBox="0 0 24 24" fill="none"><path d="M4 15a8 8 0 1116 0" stroke="#C9D6C2" stroke-width="1.8" stroke-linecap="round"/><path d="M12 15l4-4" stroke="#C9D6C2" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          <div class="gauge-wrap">
+            <svg viewBox="0 0 180 100">
+              <g id="gaugeTicks"></g>
+              <path d="M20,92 A74,74 0 0 1 160,92" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="11" stroke-linecap="round"/>
+              <path id="gaugeArc" d="M20,92 A74,74 0 0 1 160,92" fill="none" stroke="#C9F158" stroke-width="11" stroke-linecap="round"/>
+            </svg>
+            <div class="gauge-num"><span id="health">0</span>%</div>
+            <div class="gauge-sub">TODAY</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel irrigation initial" id="irrCard">
+      <div class="plan-row">
+        <div>
+          <div class="plan-lbl">Irrigation plan IR-0317</div>
+          <div class="plan-title">Field 03 · Wheat · 40 min</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <div class="agronomist">
+            <div class="ava">ML</div>
+            <div class="who"><span>Agronomist</span><b>Marcos Lima</b></div>
+          </div>
+          <button class="icon-btn"><svg viewBox="0 0 24 24" fill="#EFF6E9"><circle cx="12" cy="5.5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="18.5" r="1.8"/></svg></button>
+        </div>
+      </div>
+      <div class="zones">
+        <div class="zrow"><span>Zones irrigated <b>3/4</b></span><b id="zonePct">0%</b></div>
+        <div class="segs"><i></i><i></i><i></i><i></i></div>
+      </div>
+    </section>
+
+    <section class="panel messages initial" id="msgCard">
+      <div class="head"><h3 style="font-size:17px">Recent Messages</h3><a href="#">View all</a></div>
+      <div class="msg"><div class="ava" style="background:#C9F158;color:#22330F">PT</div><div class="txt"><b>Pivot 3</b><span>Irrigation started on Field 03</span></div></div>
+      <div class="msg"><div class="ava" style="background:#DCE8CF;color:#2A3D1E">ML</div><div class="txt"><b>Marcos Lima</b><span>Field 03 looked dry on this morning's walk</span></div></div>
+      <div class="msg"><div class="ava" style="background:#3A4A3C;color:#C9D6C2">WS</div><div class="txt"><b>Weather station</b><span>Rain expected on Thursday</span></div></div>
+    </section>
+  </div>
+
+  <!-- FIELD 03 POPUP -->
+  <div class="popup" id="popup">
+    <div class="photo">
+      <img src="assets/wheat.jpg" alt="Dry wheat in Field 03">
+      <div class="lowmoist">⚠ Low moisture</div>
+      <button class="dots">⋮</button>
+    </div>
+    <div class="body">
+      <h4>Field 03 · Wheat</h4>
+      <div class="meta">128 ha · Pivot 3 · Planted Jul 14</div>
+      <div class="pct-row">
+        <div class="pct"><span id="popupPct">18</span>%</div>
+        <div class="vs">↓ 9 pts vs. target</div>
+      </div>
+      <div class="stats">NDVI <b>0.41</b> &nbsp;·&nbsp; Soil <b>29 °C</b> &nbsp;·&nbsp; Since <b>06:10</b></div>
+      <button class="cta" id="irrBtn">Start irrigation</button>
+    </div>
+  </div>
+
+<script src="gsap.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+
+  /* ---- build harvest bars ---- */
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const vals   = [1.9, 2.9, 4.3, 3.4, 1.4, 0.8, 0.5, 0.6, 1.1, 1.7, 1.5, 1.6]; // thousand tons
+  const barsEl = $("#bars");
+  months.forEach((m,i)=>{
+    const col = document.createElement("div");
+    col.className = "col" + (i===2 ? " hot" : "");
+    col.innerHTML = `<div class="track"><div class="fill" data-h="${(vals[i]/5*100).toFixed(1)}"></div></div><div class="mon">${m}</div>`;
+    barsEl.appendChild(col);
+  });
+
+  /* ---- build pivot lollipops ---- */
+  const lolliH = [26, 40, 34, 22, 46, 30, 28];
+  const lollisEl = $("#lollis");
+  lolliH.forEach((h,i)=>{
+    const d = document.createElement("div");
+    d.className = "lolli" + (i===4 ? " hot" : "");
+    d.innerHTML = `<i></i><div class="stem" data-h="${h}"></div>`;
+    lollisEl.appendChild(d);
+  });
+
+  /* ---- gauge ticks ---- */
+  const ticks = $("#gaugeTicks");
+  let tickHtml = "";
+  for(let a=180; a>=0; a-=6){
+    const rad = a*Math.PI/180, cx=90, cy=92, r1=86, r2=(a%30===0?78:82);
+    tickHtml += `<line x1="${(cx+Math.cos(rad)*r1).toFixed(1)}" y1="${(cy-Math.sin(rad)*r1).toFixed(1)}" x2="${(cx+Math.cos(rad)*r2).toFixed(1)}" y2="${(cy-Math.sin(rad)*r2).toFixed(1)}" stroke="rgba(255,255,255,.35)" stroke-width="1.4"/>`;
+  }
+  ticks.innerHTML = tickHtml;
+
+  /* ---- prep draw-in strokes ---- */
+  function prepDraw(path, extra){
+    const L = path.getTotalLength();
+    path.style.strokeDasharray = L;
+    path.style.strokeDashoffset = L;
+    return L;
+  }
+  const ndviLine = $("#ndviLine"), soilLine = $("#soilLine");
+  prepDraw(ndviLine); prepDraw(soilLine);
+  const gaugeArc = $("#gaugeArc");
+  const gaugeLen = prepDraw(gaugeArc);
+  const zonePath = $("#zonePath");
+  const zoneLen = prepDraw(zonePath);
+
+  /* donut arcs: circumference per ring */
+  function arcSetup(el, pct){
+    const r = parseFloat(el.getAttribute("r"));
+    const C = 2*Math.PI*r;
+    el.style.strokeDasharray = C;
+    el.style.strokeDashoffset = C;
+    return {C, target: C*(1 - pct*0.92)}; // 92% sweep like activity rings
+  }
+  const soy = arcSetup($("#arcSoy"), .48), corn = arcSetup($("#arcCorn"), .32), wheat = arcSetup($("#arcWheat"), .20);
+
+  /* ---- counters ---- */
+  const ndviObj = {v:0.71}, soilObj = {v:22}, healthObj = {v:0}, pivObj = {v:0}, hectObj = {v:0}, zoneObj = {v:0};
+
+  /* ---- master entrance timeline (mirrors the reel's beats) ---- */
+  const tl = gsap.timeline({defaults:{ease:"power3.out"}});
+  gsap.set("#mapPhoto", {scale:1.14});
+  gsap.set(".pin", {scale:.4, transformOrigin:"50% 100%"});
+  gsap.set("#popup", {scale:.85, y:14, transformOrigin:"50% 60%"});
+
+  tl.to("#mapPhoto", {scale:1.0, duration:2.4, ease:"power2.out"}, 0)
+    .to("#header", {opacity:1, y:0, duration:.8, startAt:{y:-16}}, .25)
+    .to("#rail", {opacity:1, x:0, duration:.8, startAt:{x:-26}}, .45)
+    .to(".pin", {opacity:1, scale:1, duration:.55, stagger:.09, ease:"back.out(2.2)"}, .7)
+    .to(".scalebar", {opacity:1, duration:.6}, 1.0)
+    .to("#layers", {opacity:1, duration:.6}, 1.05)
+    .to("#cropCard", {opacity:1, y:0, duration:.75, startAt:{y:30}}, .8)
+    .to("#harvestCard", {opacity:1, y:0, duration:.75, startAt:{y:30}}, .92)
+    .to("#overviewCard", {opacity:1, x:0, duration:.8, startAt:{x:34}}, .85)
+    .to("#irrCard", {opacity:1, x:0, duration:.8, startAt:{x:34}}, 1.0)
+    .to("#msgCard", {opacity:1, x:0, duration:.8, startAt:{x:34}}, 1.15);
+
+  /* data animations */
+  gsap.to(ndviObj, {v:0.78, duration:1.8, delay:1.2, ease:"power2.out", onUpdate(){ $("#ndvi").textContent = ndviObj.v.toFixed(2); }});
+  gsap.to(ndviLine, {strokeDashoffset:0, duration:1.6, delay:1.25, ease:"power2.inOut"});
+  gsap.to("#ndviArea", {opacity:1, duration:1.2, delay:1.7});
+  gsap.to(soilObj, {v:31, duration:1.8, delay:1.35, ease:"power2.out", onUpdate(){ $("#soil").textContent = Math.round(soilObj.v); }});
+  gsap.to(soilLine, {strokeDashoffset:0, duration:1.6, delay:1.4, ease:"power2.inOut"});
+  gsap.to(pivObj, {v:2, duration:1.1, delay:1.3, ease:"power2.out", onUpdate(){ $("#pivots").textContent = Math.round(pivObj.v); }});
+  $$("#lollis .stem").forEach((s,i)=> gsap.to(s, {height: s.dataset.h+"px", duration:.9, delay:1.35+i*.07, ease:"power3.out"}));
+  gsap.to(gaugeArc, {strokeDashoffset: gaugeLen*(1-.88), duration:1.9, delay:1.45, ease:"power2.inOut"});
+  gsap.to(healthObj, {v:88, duration:1.9, delay:1.45, ease:"power2.inOut", onUpdate(){ $("#health").textContent = Math.round(healthObj.v); }});
+  gsap.to("#arcSoy", {strokeDashoffset: soy.target, duration:1.5, delay:1.1, ease:"power2.inOut"});
+  gsap.to("#arcCorn", {strokeDashoffset: corn.target, duration:1.5, delay:1.22, ease:"power2.inOut"});
+  gsap.to("#arcWheat", {strokeDashoffset: wheat.target, duration:1.5, delay:1.34, ease:"power2.inOut"});
+  gsap.to(hectObj, {v:1240, duration:1.7, delay:1.1, ease:"power2.out", onUpdate(){ $("#hectares").textContent = Math.round(hectObj.v).toLocaleString("en-US"); }});
+  $$("#bars .fill").forEach((f,i)=> gsap.to(f, {height: f.dataset.h+"%", duration:1.0, delay:1.15+i*.06, ease:"power3.out"}));
+  gsap.to(zoneObj, {v:75, duration:2.2, delay:3.4, ease:"power1.inOut", onUpdate(){ $("#zonePct").textContent = Math.round(zoneObj.v)+"%"; }});
+  $$(".zones .segs i").forEach((s,i)=>{ if(i<3) gsap.delayedCall(3.6+i*.5, ()=> s.classList.add("lime")); });
+
+  /* ---- Field 03 popup beat ---- */
+  let popupOpen = false, irrigating = false;
+  function openPopup(){
+    if(popupOpen) return; popupOpen = true;
+    gsap.to("#zoneOutline", {opacity:1, duration:.4});
+    gsap.to(zonePath, {strokeDashoffset:0, duration:1.1, ease:"power2.inOut"});
+    gsap.to("#popup", {opacity:1, scale:1, y:0, duration:.65, ease:"back.out(1.6)", delay:.25,
+      onStart(){ $("#popup").style.pointerEvents = "auto"; }});
+  }
+  function closePopup(){
+    if(!popupOpen) return; popupOpen = false;
+    gsap.to("#popup", {opacity:0, scale:.88, y:12, duration:.35, ease:"power2.in",
+      onComplete(){ $("#popup").style.pointerEvents = "none"; }});
+    gsap.to(zonePath, {strokeDashoffset: zoneLen, duration:.6, ease:"power2.in"});
+    gsap.to("#zoneOutline", {opacity:0, duration:.5, delay:.15});
+  }
+  gsap.delayedCall(3.1, openPopup);
+  gsap.delayedCall(4.6, ()=> setIrrigating(true));
+
+  const irrBtn = $("#irrBtn");
+  function setIrrigating(on){
+    irrigating = on;
+    irrBtn.classList.toggle("irrigating", on);
+    irrBtn.innerHTML = on ? "✓&nbsp; Irrigating · 40 min" : "Start irrigation";
+  }
+  irrBtn.addEventListener("click", ()=> setIrrigating(!irrigating));
+  $("#pinField03").addEventListener("click", ()=> popupOpen ? closePopup() : openPopup());
+
+  /* ---- layer switcher ---- */
+  const tint = $("#mapTint");
+  $$("#layers button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      $$("#layers button").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      tint.className = "tint " + (btn.dataset.tint || "");
+    });
+  });
+
+  /* ---- rail active state ---- */
+  $$(".rail a").forEach(a=> a.addEventListener("click", e=>{
+    e.preventDefault();
+    $$(".rail a").forEach(x=>x.classList.remove("active"));
+    a.classList.add("active");
+  }));
+
+  /* ---- idle drift ---- */
+  gsap.to("#mapPhoto", {scale:1.045, duration:26, delay:2.6, ease:"sine.inOut", yoyo:true, repeat:-1});
+})();
+</script>
+</body>
+</html>
